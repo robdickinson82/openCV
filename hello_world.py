@@ -6,6 +6,10 @@ from config import *
 
 from shapeHelpers import *
 
+
+
+
+
 def open_input_image(filename):
 	img = cv2.imread(INPUT_PATH + filename)
 	return img
@@ -30,6 +34,49 @@ def open_display_wait(title, filename):
 	wait_for_key_press_and_close()
 	return
 
+def event_handler(event, x, y, flags, params):
+	print (event, flags, params)
+	event_dict = {cv2.EVENT_FLAG_ALTKEY : None, 
+					cv2.EVENT_FLAG_CTRLKEY : mouse_click, 
+					cv2.EVENT_FLAG_LBUTTON : None, 
+					cv2.EVENT_FLAG_MBUTTON : None, 
+					cv2.EVENT_FLAG_RBUTTON : None, 
+					cv2.EVENT_FLAG_SHIFTKEY : None, 
+					cv2.EVENT_LBUTTONDBLCLK : None, 
+					cv2.EVENT_LBUTTONDOWN : mouse_click, 
+					cv2.EVENT_LBUTTONUP : None, 
+					cv2.EVENT_MBUTTONDBLCLK : None, 
+					cv2.EVENT_MBUTTONDOWN : None, 
+					cv2.EVENT_MBUTTONUP : None, 
+					cv2.EVENT_MOUSEHWHEEL : None, 
+					cv2.EVENT_MOUSEMOVE : None, 
+					cv2.EVENT_MOUSEWHEEL : None, 
+					cv2.EVENT_RBUTTONDBLCLK : None, 
+					cv2.EVENT_RBUTTONDOWN : None, 
+					cv2.EVENT_RBUTTONUP : None
+			}
+
+
+	print (event)
+	if event_dict[event]:
+		event_dict[event](x,y, flags, params)
+	return
+
+def mouse_left_click(window, x,y, flags, params):
+	circ = Circle((x,y), 50, WHITE, 3)
+	text = Text("(" + str(x) + "," + str(y) + ")", (x+50,y+50), 1, WHITE, 2)
+	window.clear_shape_overlay()
+	window.add_shape_overlay(circ)
+	window.add_shape_overlay(text)
+	return
+
+
+def mouse_left_click2(window, x,y, flags, params):
+	circ = Circle((x,y), 75, RED, 3)
+	window.clear_shape_overlay()
+	window.add_shape_overlay(circ)
+	return
+
 #open_display_wait("hello world", TEST_IMAGES[0])
 
 def demo_plot():
@@ -43,22 +90,10 @@ def create_blank_canvas(width, height):
 	img = np.zeros((width,height,3), np.uint8)
 	return img
 
-def draw_line_on_image(img, start, end, colour_BGR, thickness):
-	img = cv2.line(img, start, end, colour_BGR, thickness)
-	return img	
+def video_capture_and_process2( filename = None, frame_processes = None):
+	window1_name = 'frame'
+	window2_name = 'frame2'
 
-def draw_circle_on_image(img, centre, radius, colour_BGR, thickness):
-	img = cv2.circle(img, centre, radius, colour_BGR, thickness)
-	return img
-
-def draw_ellipse_on_image(img, centre, minor, major, angle, start_angle, end_angle, colour_BGR, thickness):
-	img = cv2.ellipse(img, centre, (minor, major), angle, start_angle, end_angle, colour_BGR, thickness)
-
-def draw_rect_on_image(img, top_left, bottom_right, colour_BGR, thickness):
-	img = cv2.rectangle(img, top_left, bottom_right, colour_BGR, thickness)
-	return img
-
-def demo_video_capture(filename = None):
 	if filename:
 		filename = INPUT_PATH + filename
 	else:
@@ -66,65 +101,81 @@ def demo_video_capture(filename = None):
 	print (filename)
 	cap = cv2.VideoCapture(filename)
 
+	window1 = Window(window1_name)
+	window1.add_event_mapping(cv2.EVENT_LBUTTONDOWN, mouse_left_click)
+
+	window2 = Window(window2_name)
+	window2.add_event_mapping(cv2.EVENT_LBUTTONDOWN, mouse_left_click2)
+
 	while(True):
 	    # Capture frame-by-frame
 	    ret, frame = cap.read()
 
 	    # Our operations on the frame come here
-	    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-	    #draw_line_on_image(gray, 0, 0, 511, 511, (255,0,0), 10)
+	    if frame_processes:
+	    	for frame_process in frame_processes:
+	    		frame = frame_process["func"](frame, frame_process["params"])
 
 	    # Display the resulting frame
-	    cv2.imshow('frame',gray)
+	    window1.set_base_image(frame)
+	    window1.update()
+	    window2.set_base_image(frame)
+	    window2.update()
 	    if cv2.waitKey(1) & 0xFF == ord('q'):
 	        break
 
 	# When everything done, release the capture
 	cap.release()
-	cv2.destroyAllWindows()
+	window1.close()
+	window2.close()
 	return
 
 
-def demo_shapes():
-	# Create a black image
-	img = create_blank_canvas(512, 512)
-	# Draw a diagonal blue line with thickness of 5 px
-	draw_line_on_image(img, (0, 0), (511, 511), (255,0,0), 10)
-	draw_ellipse_on_image(img, (100,100), 50, 100, 45, 25, 125, (0,255,0), 2)
-	draw_rect_on_image(img, (100,100), (200,300), (255,255,0), 2)
-	draw_circle_on_image(img, (400,400), 100, (0,255,255), 3)
 
+
+def demo_shapes():
+	img = create_blank_canvas(512, 512)
+	shapes = Group()
+	rect = Rectangle((100,100), (100,150), (0,0,255), 2)
+	text = Text("Hello World", (100,100), 5, (0,128,255), 2)
+	shapes.add(rect)
+	shapes.add(text)
+	shapes.draw(img)
+	shapes.translate((100,50))
+	shapes.resize(0.5)
+	shapes.draw(img)
 	display_window("Title", img)
 	wait_for_key_press_and_close()
 	return
 
+def add_shape_group(img, params):
+	group = params[0]
+	group.draw(img)
+	return img
 
+def convert_colour(img, params):
+	img = cv2.cvtColor(img, params[0])	
+	return img
 
-img = create_blank_canvas(512, 512)
+def draw_crosshairs_at_centre(img, params):
+	circ = Circle((int(img.shape[1]/2), int(img.shape[0]/2)), 50, WHITE, 3)
+	circ.draw(img)
+	return img
 
+frame_processes = [
+	#{ "func": convert_colour, "params": [cv2.COLOR_BGR2GRAY]},
+	#{ "func": add_shape_group, "params": [group]}
+	#{ "func": draw_crosshairs_at_centre, "params": [None]}
+]
 
-shapes = Group()
+video_capture_and_process2(None, frame_processes)
 
+#print (dir(cv2))
 
-rect = Rectangle((100,100), (100,150), (0,0,255), 2)
-shapes.add(rect)
+#events = [i for i in dir(cv2) if 'estroy' in i]
+#print (events)
 
-shapes.draw(img)
-
-shapes.translate((100,50))
-
-shapes.draw(img)
-
-
-
-display_window("Title", img)
-wait_for_key_press_and_close()
-
-
-
-
-#demo_video_capture()
-#demo_shapes()
+#print (cv2.EVENT_RBUTTONDOWN)
 
 
 
